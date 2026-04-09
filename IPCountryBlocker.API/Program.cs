@@ -1,4 +1,8 @@
-
+using IPCountryBlocker.API.BackgroundServices;
+using IPCountryBlocker.API.Interfaces;
+using IPCountryBlocker.API.Middlewares;
+using IPCountryBlocker.API.Repositories;
+using IPCountryBlocker.API.Services;
 namespace IPCountryBlocker.API
 {
     public class Program
@@ -8,29 +12,41 @@ namespace IPCountryBlocker.API
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
-
             builder.Services.AddControllers();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
-            var app = builder.Build();
+            // DI for HttpContext
+            builder.Services.AddHttpContextAccessor();
+
+            // DI for Repositories (Singleton because they hold in-memory state for the app lifetime)
+            builder.Services.AddSingleton<ICountryRepository, InMemoryCountryRepository>();
+            builder.Services.AddSingleton<ILogRepository, InMemoryLogRepository>();
+
+            // Register HttpClient and GeoLocationService
+            builder.Services.AddHttpClient<IGeoLocationService, GeoLocationService>();
+
+            // Register Background Services
+            builder.Services.AddHostedService<TemporalBlockCleanupService>();
+
+            var webApp = builder.Build();
 
             // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
+            if (webApp.Environment.IsDevelopment())
             {
-                app.UseSwagger();
-                app.UseSwaggerUI();
+                webApp.UseSwagger();
+                webApp.UseSwaggerUI();
             }
 
-            app.UseHttpsRedirection();
+            webApp.UseMiddleware<ExceptionHandlingMiddleware>();
 
-            app.UseAuthorization();
+            webApp.UseHttpsRedirection();
 
+            webApp.UseAuthorization();
 
-            app.MapControllers();
+            webApp.MapControllers();
 
-            app.Run();
+            webApp.Run();
         }
     }
 }
